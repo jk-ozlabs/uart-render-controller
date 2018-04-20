@@ -72,6 +72,7 @@ enum host_state {
 struct render_ctx {
 	enum host_state	state;
 	int		vga_pw_fd;
+	int		video_mode_fd;
 	sd_bus		*bus;
 
 	const char	*service_name;
@@ -94,6 +95,7 @@ static const char *systemd_iface = "org.freedesktop.systemd1.Manager";
 
 static void set_renderer_running(struct render_ctx *ctx, bool running)
 {
+	char buf[] = { '0', '\n' };
 	sd_bus_error e = {0};
 	int rc;
 
@@ -111,12 +113,28 @@ static void set_renderer_running(struct render_ctx *ctx, bool running)
 			ctx->service_name,
 			"replace");
 
-	if (rc < 0)
+	if (rc < 0) {
 		warnx("failed to %s %s: %s\n",
 				running ? "start" : "stop",
 				ctx->service_name,
 				sd_bus_error_is_set(&e) ?
 					e.name : strerror(rc));
+		return;
+	}
+
+	/* 1 for local output, 0 for host */
+	if (running)
+		buf[0] = '1';
+
+	rc = lseek(ctx->video_mode_fd, 0, SEEK_SET);
+	if (rc == -1) {
+		warn("Can't seek video mode reg interface");
+		return;
+	}
+
+	rc = write(ctx->video_mode_fd, buf, sizeof(buf));
+	if (rc < 0)
+		warn("Can't write video mode reg interface");
 }
 
 static int read_vga_pw_reg(struct render_ctx *ctx, uint8_t *regp)
@@ -376,33 +394,38 @@ static int query_initial_state(struct render_ctx *ctx)
 
 static void usage(const char *progname)
 {
-	fprintf(stderr, "usage: %s <VGA-reg> <renderer-service>\n",
+	fprintf(stderr, "usage: %s <VGA-reg> <SCU-reg> <renderer-service>\n",
 			progname);
 }
 
 
 int main(int argc, char **argv)
 {
+	const char *vga_pw_path, *video_mode_path;
 	struct render_ctx _ctx, *ctx;
-	const char *vga_pw_path;
 	char *match;
 	int rc;
 
 	ctx = &_ctx;
 
-	if (argc != 3) {
+	if (argc != 4) {
 		usage(argv[0]);
 		return EXIT_FAILURE;
 	}
 
 	vga_pw_path = argv[1];
-	ctx->service_name = argv[2];
+	video_mode_path = argv[2];
+	ctx->service_name = argv[3];
 
 	ctx->vga_pw_fd = open(vga_pw_path, O_RDONLY);
 	if (ctx->vga_pw_fd < 0)
 		err(EXIT_FAILURE, "can't open VGA scratch regs interface at %s",
 				vga_pw_path);
 
+	ctx->video_mode_fd = open(video_mode_path, O_WRONLY);
+	if (ctx->video_mode_fd < 0)
+		err(EXIT_FAILURE, "can't open video mode reg interface at %s",
+				video_mode_path);
 
 	rc = sd_bus_default(&ctx->bus);
 	if (rc < 0)
