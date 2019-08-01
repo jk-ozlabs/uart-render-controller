@@ -139,8 +139,8 @@ static void set_renderer_running(struct render_ctx *ctx, bool running)
 
 static int read_vga_pw_reg(struct render_ctx *ctx, uint8_t *regp)
 {
+	char buf[8], *endp;
 	unsigned long tmp;
-	char buf[8];
 	int rc;
 
 	rc = lseek(ctx->vga_pw_fd, 0, SEEK_SET);
@@ -156,9 +156,9 @@ static int read_vga_pw_reg(struct render_ctx *ctx, uint8_t *regp)
 	}
 
 	errno = 0;
-	tmp = strtoul(buf, NULL, 0);
-	if (errno || (tmp & ~0xfful)) {
-		warn("Can't parse VGA scratch register value");
+	tmp = strtoul(buf, &endp, 0);
+	if (errno || endp == buf) {
+		warnx("Can't parse VGA scratch register value");
 		return -1;
 	}
 
