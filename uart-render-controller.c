@@ -139,7 +139,8 @@ static void set_renderer_running(struct render_ctx *ctx, bool running)
 
 static int read_vga_pw_reg(struct render_ctx *ctx, uint8_t *regp)
 {
-	char buf[8], *endp;
+	char buf[11]; /* Cover largest 32 bit unsigned int as decimal */
+	char *endp;
 	unsigned long tmp;
 	int rc;
 
