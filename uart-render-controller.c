@@ -139,7 +139,7 @@ static void set_renderer_running(struct render_ctx *ctx, bool running)
 
 static int read_vga_pw_reg(struct render_ctx *ctx, uint8_t *regp)
 {
-	char buf[12]; /* Cover largest 32 bit unsigned int as decimal + \n */
+	char buf[12]; /* Cover 32 bit unsigned int as decimal + \n + \0 */
 	char *endp;
 	unsigned long tmp;
 	int rc;
@@ -150,7 +150,7 @@ static int read_vga_pw_reg(struct render_ctx *ctx, uint8_t *regp)
 		return -1;
 	}
 
-	rc = read(ctx->vga_pw_fd, buf, sizeof(buf));
+	rc = read(ctx->vga_pw_fd, buf, sizeof(buf) - 1);
 	if (rc < 1) {
 		warn("Can't read VGA scratch register");
 		return -1;
